@@ -5,17 +5,9 @@ import styles from './page.module.css';
 
 const STORAGE_KEY = 'lightblue_messages';
 const SESSION_KEY = 'lightblue_session';
-const PASSCODE_KEY = 'lightblue_passcode';
 const TTL_MS = 24 * 60 * 60 * 1000;
 
-// ── Crypto helpers ───────────────────────────────────────────────────────────
-
-async function hashPasscode(raw) {
-  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(raw));
-  return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, '0')).join('');
-}
-
-// ── Storage helpers ───────────────────────────────────────────────────────────
+// ── Session ───────────────────────────────────────────────────────────────────
 
 function getSession() {
   try {
@@ -26,15 +18,16 @@ function getSession() {
   } catch { return null; }
 }
 
-function createSession() {
-  localStorage.setItem(SESSION_KEY, JSON.stringify({ expiry: Date.now() + TTL_MS }));
+function createSession(username) {
+  localStorage.setItem(SESSION_KEY, JSON.stringify({ username, expiry: Date.now() + TTL_MS }));
 }
+
+// ── Messages ──────────────────────────────────────────────────────────────────
 
 function loadMessages() {
   try {
     const msgs = JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
-    const cutoff = Date.now() - TTL_MS;
-    return msgs.filter((m) => m.ts > cutoff);
+    return msgs.filter((m) => m.ts > Date.now() - TTL_MS);
   } catch { return []; }
 }
 
@@ -46,92 +39,72 @@ function formatTime(ts) {
   return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
-// ── Login screen ──────────────────────────────────────────────────────────────
+// ── Login ─────────────────────────────────────────────────────────────────────
 
-function LoginScreen({ onSuccess }) {
-  const [mode, setMode] = useState(null); // 'create' | 'login' | 'expired'
-  const [value, setValue] = useState('');
-  const [confirm, setConfirm] = useState('');
+function LoginScreen({ onSuccess, expired }) {
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const inputRef = useRef(null);
+  const userRef = useRef(null);
 
-  useEffect(() => {
-    const hasPasscode = !!localStorage.getItem(PASSCODE_KEY);
-    const expired = !getSession() && hasPasscode;
-    setMode(hasPasscode ? (expired ? 'expired' : 'login') : 'create');
-    setTimeout(() => inputRef.current?.focus(), 100);
-  }, []);
+  useEffect(() => { userRef.current?.focus(); }, []);
 
   const handleSubmit = useCallback(async (e) => {
     e.preventDefault();
-    if (!value.trim()) return;
+    if (!username.trim() || !password.trim()) return;
     setLoading(true);
     setError('');
-
     try {
-      if (mode === 'create') {
-        if (value.length < 4) { setError('minimum 4 characters'); setLoading(false); return; }
-        if (value !== confirm) { setError("passcodes don't match"); setLoading(false); return; }
-        const hashed = await hashPasscode(value);
-        localStorage.setItem(PASSCODE_KEY, hashed);
-        createSession();
-        onSuccess();
-      } else {
-        const hashed = await hashPasscode(value);
-        const stored = localStorage.getItem(PASSCODE_KEY);
-        if (hashed === stored) {
-          createSession();
-          onSuccess();
-        } else {
-          setError('wrong passcode');
-        }
-      }
-    } catch { setError('something went wrong'); }
+      const res = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setError(data.error || 'login failed'); return; }
+      createSession(data.username);
+      onSuccess(data.username);
+    } catch { setError('connection error'); }
     setLoading(false);
-  }, [value, confirm, mode, onSuccess]);
-
-  if (!mode) return null;
+  }, [username, password, onSuccess]);
 
   return (
     <div className={styles.loginScreen}>
       <div className={styles.loginCard}>
         <div className={styles.loginLogo}>lightblue</div>
         <p className={styles.loginSub}>
-          {mode === 'create'
-            ? 'create a passcode to start'
-            : mode === 'expired'
-            ? 'session expired. log back in.'
-            : 'welcome back'}
+          {expired ? 'session expired. log back in.' : 'private conversation'}
         </p>
-
         <form className={styles.loginForm} onSubmit={handleSubmit}>
           <input
-            ref={inputRef}
+            ref={userRef}
+            className={styles.loginInput}
+            type="text"
+            placeholder="username"
+            value={username}
+            autoComplete="username"
+            autoCapitalize="none"
+            onChange={(e) => { setUsername(e.target.value); setError(''); }}
+          />
+          <input
             className={styles.loginInput}
             type="password"
-            placeholder={mode === 'create' ? 'create a passcode' : 'enter your passcode'}
-            value={value}
-            onChange={(e) => { setValue(e.target.value); setError(''); }}
+            placeholder="password"
+            value={password}
             autoComplete="current-password"
+            onChange={(e) => { setPassword(e.target.value); setError(''); }}
           />
-          {mode === 'create' && (
-            <input
-              className={styles.loginInput}
-              type="password"
-              placeholder="confirm passcode"
-              value={confirm}
-              onChange={(e) => { setConfirm(e.target.value); setError(''); }}
-              autoComplete="new-password"
-            />
-          )}
           {error && <p className={styles.loginError}>{error}</p>}
-          <button className={styles.loginBtn} type="submit" disabled={loading || !value.trim()}>
-            {loading ? '···' : mode === 'create' ? 'create' : 'enter'}
+          <button
+            className={styles.loginBtn}
+            type="submit"
+            disabled={loading || !username.trim() || !password.trim()}
+          >
+            {loading ? '···' : 'enter'}
           </button>
         </form>
-
-        <p className={styles.loginNote}>sessions last 24 hours · no account · no data sent</p>
+        <p className={styles.loginNote}>sessions last 24 hours · messages delete after 24h</p>
       </div>
     </div>
   );
@@ -139,19 +112,23 @@ function LoginScreen({ onSuccess }) {
 
 // ── Message ───────────────────────────────────────────────────────────────────
 
-function Message({ message }) {
-  const isUser = message.role === 'user';
+function Message({ message, currentUser }) {
+  const isMine = message.sender === currentUser;
+  const isVanilla = message.sender === 'vanilla';
+
   return (
-    <div className={`${styles.messageRow} ${isUser ? styles.user : ''}`}>
-      <div className={`${styles.msgAvatar} ${isUser ? styles.you : styles.vanilla}`}>
-        {isUser ? 'Y' : 'V'}
+    <div className={`${styles.messageRow} ${isMine ? styles.mine : ''}`}>
+      <div className={`${styles.msgAvatar} ${isVanilla ? styles.avatarVanilla : styles.avatarRed}`}>
+        {message.sender === 'vanilla' ? 'V' : 'R'}
       </div>
       <div className={styles.msgBody}>
         <div className={styles.msgMeta}>
-          <span className={styles.msgLabel}>{isUser ? 'you' : 'vanilla'}</span>
+          <span className={`${styles.msgLabel} ${isVanilla ? styles.labelVanilla : styles.labelRed}`}>
+            {message.sender}
+          </span>
           <span className={styles.msgTime}>{formatTime(message.ts)}</span>
         </div>
-        <div className={`${styles.bubble} ${isUser ? styles.user : styles.vanilla}`}>
+        <div className={`${styles.bubble} ${isMine ? styles.bubbleMine : styles.bubbleOther} ${isVanilla ? styles.bubbleVanilla : styles.bubbleRed}`}>
           {message.content}
         </div>
       </div>
@@ -161,31 +138,25 @@ function Message({ message }) {
 
 // ── Chat ──────────────────────────────────────────────────────────────────────
 
-function Chat({ onLogout }) {
+function Chat({ currentUser, onLogout }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
-  const [speaker, setSpeaker] = useState('user');
   const bottomRef = useRef(null);
   const textareaRef = useRef(null);
 
-  useEffect(() => {
-    setMessages(loadMessages());
-  }, []);
-
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  useEffect(() => { setMessages(loadMessages()); }, []);
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
 
   const sendMessage = useCallback(() => {
     const text = input.trim();
     if (!text) return;
-    const msg = { role: speaker === 'vanilla' ? 'assistant' : 'user', content: text, ts: Date.now() };
+    const msg = { sender: currentUser, content: text, ts: Date.now() };
     const next = [...messages, msg];
     setMessages(next);
     saveMessages(next);
     setInput('');
     if (textareaRef.current) textareaRef.current.style.height = 'auto';
-  }, [input, messages, speaker]);
+  }, [input, messages, currentUser]);
 
   const handleKeyDown = useCallback((e) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
@@ -203,25 +174,26 @@ function Chat({ onLogout }) {
     localStorage.removeItem(STORAGE_KEY);
   }, []);
 
-  const logout = useCallback(() => {
-    localStorage.removeItem(SESSION_KEY);
-    onLogout();
-  }, [onLogout]);
+  const isVanilla = currentUser === 'vanilla';
 
   return (
     <div className={styles.chat}>
       <header className={styles.header}>
         <div className={styles.avatarWrap}>
-          <div className={styles.avatar}>V</div>
-          <span className={styles.onlineDot} />
+          <div className={`${styles.avatar} ${isVanilla ? styles.avatarVanilla : styles.avatarRed}`}>
+            {isVanilla ? 'V' : 'R'}
+          </div>
+          <span className={`${styles.onlineDot} ${isVanilla ? styles.dotVanilla : styles.dotRed}`} />
         </div>
         <div className={styles.headerInfo}>
-          <span className={styles.headerName}>Vanilla</span>
+          <span className={`${styles.headerName} ${isVanilla ? styles.nameVanilla : styles.nameRed}`}>
+            {currentUser}
+          </span>
           <span className={styles.headerStatus}>Private · messages delete after 24h</span>
         </div>
         <div className={styles.headerActions}>
-          <button className={styles.clearBtn} onClick={clearAll} title="Clear messages">clear</button>
-          <button className={styles.clearBtn} onClick={logout} title="Log out">logout</button>
+          <button className={styles.clearBtn} onClick={clearAll}>clear</button>
+          <button className={styles.clearBtn} onClick={onLogout}>logout</button>
         </div>
       </header>
 
@@ -229,29 +201,24 @@ function Chat({ onLogout }) {
         {messages.length === 0 && (
           <div className={styles.empty}>no messages yet. say something.</div>
         )}
-        {messages.map((msg, i) => <Message key={i} message={msg} />)}
+        {messages.map((msg, i) => (
+          <Message key={i} message={msg} currentUser={currentUser} />
+        ))}
         <div ref={bottomRef} />
       </main>
 
       <footer className={styles.inputArea}>
-        <button
-          className={`${styles.speakerToggle} ${speaker === 'vanilla' ? styles.speakerVanilla : styles.speakerYou}`}
-          onClick={() => setSpeaker((s) => s === 'user' ? 'vanilla' : 'user')}
-          title="Switch speaker"
-        >
-          {speaker === 'vanilla' ? 'V' : 'Y'}
-        </button>
         <textarea
           ref={textareaRef}
-          className={styles.textarea}
+          className={`${styles.textarea} ${isVanilla ? styles.textareaVanilla : styles.textareaRed}`}
           rows={1}
-          placeholder={speaker === 'vanilla' ? 'typing as Vanilla…' : 'say something…'}
+          placeholder={`say something, ${currentUser}…`}
           value={input}
           onChange={handleInput}
           onKeyDown={handleKeyDown}
         />
         <button
-          className={styles.sendBtn}
+          className={`${styles.sendBtn} ${isVanilla ? styles.sendVanilla : styles.sendRed}`}
           onClick={sendMessage}
           disabled={!input.trim()}
           aria-label="Send"
@@ -269,17 +236,38 @@ function Chat({ onLogout }) {
 // ── Root ──────────────────────────────────────────────────────────────────────
 
 export default function Page() {
-  const [authed, setAuthed] = useState(null); // null = checking
+  const [session, setSession] = useState(null); // null = checking
+  const [expired, setExpired] = useState(false);
 
   useEffect(() => {
-    setAuthed(!!getSession());
+    const s = getSession();
+    setSession(s || false);
+    setExpired(!s && !!localStorage.getItem(SESSION_KEY + '_was'));
   }, []);
 
-  if (authed === null) return null; // avoid flash
+  if (session === null) return null;
 
-  if (!authed) {
-    return <LoginScreen onSuccess={() => setAuthed(true)} />;
+  if (!session) {
+    return (
+      <LoginScreen
+        expired={expired}
+        onSuccess={(username) => {
+          localStorage.setItem(SESSION_KEY + '_was', '1');
+          setSession({ username });
+          setExpired(false);
+        }}
+      />
+    );
   }
 
-  return <Chat onLogout={() => setAuthed(false)} />;
+  return (
+    <Chat
+      currentUser={session.username}
+      onLogout={() => {
+        localStorage.removeItem(SESSION_KEY);
+        setSession(false);
+        setExpired(true);
+      }}
+    />
+  );
 }
