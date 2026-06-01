@@ -303,6 +303,20 @@
   padding: 20px;
 }
 
+/* ── Send error banner ── */
+.sendErrBanner {
+  flex-shrink: 0;
+  background: #2a0810;
+  border-top: 1px solid #5a1525;
+  color: #ff4d6d;
+  font-family: 'Space Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-align: center;
+  padding: 8px 16px;
+  cursor: pointer;
+}
+
 /* ── Input area ── */
 .inputArea {
   flex-shrink: 0;
@@ -674,9 +688,13 @@
 
 /* ── Very small screens (≤ 360px) ── */
 @media (max-width: 360px) {
-  .headerStatus { display: none; }
-  .clearBtn { padding: 7px 8px; font-size: 8px; }
-  .messages { padding: 14px 12px; gap: 14px; }
-  .msgBody { max-width: 84%; }
+  .header { padding: 10px 12px; padding-top: max(10px, env(safe-area-inset-top)); gap: 10px; }
+  .avatar { width: 36px; height: 36px; font-size: 13px; }
+  .headerName { font-size: 12px; }
+  .clearBtn { padding: 6px 8px; font-size: 8px; }
+  .messages { padding: 12px; gap: 12px; }
+  .msgBody { max-width: 86%; }
+  .bubble { font-size: 14px; padding: 9px 12px; }
   .inputArea { padding: 10px 12px; padding-bottom: max(10px, env(safe-area-inset-bottom)); gap: 6px; }
+  .sendBtn, .iconBtn { width: 40px; height: 40px; }
 }
