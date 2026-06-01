@@ -2,7 +2,7 @@ import './globals.css';
 
 export const metadata = {
   title: 'lightblue',
-  description: 'A private conversation with Ru.',
+  description: 'A private conversation with Vanilla.',
 };
 
 export default function RootLayout({ children }) {

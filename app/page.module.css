@@ -138,7 +138,7 @@
   font-weight: 700;
 }
 
-.msgAvatar.ru {
+.msgAvatar.vanilla {
   background: linear-gradient(135deg, var(--neon-dim), #0a4060);
   border: 1px solid var(--neon-dim);
   color: var(--neon);
@@ -195,7 +195,7 @@
   word-break: break-word;
 }
 
-.bubble.ru {
+.bubble.vanilla {
   background: var(--surface2);
   border: 1px solid var(--border);
   color: var(--text);
@@ -321,7 +321,7 @@
   transition: border-color 0.18s, box-shadow 0.18s, color 0.18s;
 }
 
-.speakerRu {
+.speakerVanilla {
   border-color: var(--neon-dim);
   color: var(--neon);
   box-shadow: 0 0 10px rgba(61, 214, 245, 0.2);
@@ -332,9 +332,15 @@
   color: var(--text-dim);
 }
 
-/* ── Clear button ── */
-.clearBtn {
+/* ── Header actions ── */
+.headerActions {
   margin-left: auto;
+  display: flex;
+  gap: 8px;
+}
+
+/* ── Clear / logout buttons ── */
+.clearBtn {
   background: transparent;
   border: 1px solid var(--muted);
   border-radius: 6px;
@@ -351,4 +357,114 @@
 .clearBtn:hover {
   border-color: var(--text-dim);
   color: var(--text-dim);
+}
+
+/* ── Login screen ── */
+.loginScreen {
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+  padding: 24px;
+}
+
+.loginCard {
+  width: 100%;
+  max-width: 360px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+}
+
+.loginLogo {
+  font-family: 'Space Mono', monospace;
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--neon);
+  text-shadow: 0 0 24px var(--neon), 0 0 60px rgba(61, 214, 245, 0.25);
+}
+
+.loginSub {
+  font-family: 'Space Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  text-align: center;
+}
+
+.loginForm {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.loginInput {
+  width: 100%;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text);
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 15px;
+  padding: 12px 16px;
+  outline: none;
+  transition: border-color 0.18s, box-shadow 0.18s;
+}
+
+.loginInput::placeholder {
+  color: var(--muted);
+}
+
+.loginInput:focus {
+  border-color: var(--neon-dim);
+  box-shadow: 0 0 0 2px rgba(61, 214, 245, 0.12);
+}
+
+.loginError {
+  font-family: 'Space Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: #f05;
+  text-align: center;
+  padding: 0 4px;
+}
+
+.loginBtn {
+  margin-top: 4px;
+  width: 100%;
+  padding: 13px;
+  border-radius: 10px;
+  background: transparent;
+  border: 1px solid var(--neon-dim);
+  color: var(--neon);
+  font-family: 'Space Mono', monospace;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: border-color 0.18s, box-shadow 0.18s;
+}
+
+.loginBtn:hover:not(:disabled) {
+  border-color: var(--neon);
+  box-shadow: 0 0 18px rgba(61, 214, 245, 0.25);
+}
+
+.loginBtn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.loginNote {
+  font-family: 'Space Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  text-align: center;
+  line-height: 1.7;
 }
