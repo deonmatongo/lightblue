@@ -1,13 +1,13 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { supabase } from '../lib/supabase';
 import styles from './page.module.css';
 
-const STORAGE_KEY = 'lightblue_messages';
 const SESSION_KEY = 'lightblue_session';
 const TTL_MS = 24 * 60 * 60 * 1000;
 
-// ── Session ───────────────────────────────────────────────────────────────────
+// ── Session (stays in localStorage) ──────────────────────────────────────────
 
 function getSession() {
   try {
@@ -20,19 +20,6 @@ function getSession() {
 
 function createSession(username) {
   localStorage.setItem(SESSION_KEY, JSON.stringify({ username, expiry: Date.now() + TTL_MS }));
-}
-
-// ── Messages ──────────────────────────────────────────────────────────────────
-
-function loadMessages() {
-  try {
-    const msgs = JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
-    return msgs.filter((m) => m.ts > Date.now() - TTL_MS);
-  } catch { return []; }
-}
-
-function saveMessages(msgs) {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(msgs)); } catch {}
 }
 
 function formatTime(ts) {
@@ -62,7 +49,7 @@ function LoginScreen({ onSuccess, expired }) {
         body: JSON.stringify({ username, password }),
       });
       const data = await res.json();
-      if (!res.ok) { setError(data.error || 'login failed'); return; }
+      if (!res.ok) { setError(data.error || 'login failed'); setLoading(false); return; }
       createSession(data.username);
       onSuccess(data.username);
     } catch { setError('connection error'); }
@@ -119,14 +106,14 @@ function Message({ message, currentUser }) {
   return (
     <div className={`${styles.messageRow} ${isMine ? styles.mine : ''}`}>
       <div className={`${styles.msgAvatar} ${isVanilla ? styles.avatarVanilla : styles.avatarRed}`}>
-        {message.sender === 'vanilla' ? 'V' : 'R'}
+        {isVanilla ? 'V' : 'R'}
       </div>
       <div className={styles.msgBody}>
         <div className={styles.msgMeta}>
           <span className={`${styles.msgLabel} ${isVanilla ? styles.labelVanilla : styles.labelRed}`}>
             {message.sender}
           </span>
-          <span className={styles.msgTime}>{formatTime(message.ts)}</span>
+          <span className={styles.msgTime}>{formatTime(message.created_at)}</span>
         </div>
         <div className={`${styles.bubble} ${isMine ? styles.bubbleMine : styles.bubbleOther} ${isVanilla ? styles.bubbleVanilla : styles.bubbleRed}`}>
           {message.content}
@@ -141,31 +128,56 @@ function Message({ message, currentUser }) {
 function Chat({ currentUser, onLogout }) {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
+  const [sending, setSending] = useState(false);
   const bottomRef = useRef(null);
   const textareaRef = useRef(null);
 
   useEffect(() => {
-    setMessages(loadMessages());
+    const cutoff = new Date(Date.now() - TTL_MS).toISOString();
 
-    const onStorage = (e) => {
-      if (e.key === STORAGE_KEY) setMessages(loadMessages());
-    };
-    window.addEventListener('storage', onStorage);
-    return () => window.removeEventListener('storage', onStorage);
+    // Delete messages older than 24hrs, then load the rest
+    supabase.from('messages').delete().lt('created_at', cutoff).then(() => {
+      supabase
+        .from('messages')
+        .select('*')
+        .order('created_at', { ascending: true })
+        .then(({ data }) => { if (data) setMessages(data); });
+    });
+
+    // Real-time: new messages from any device
+    const channel = supabase
+      .channel('messages-live')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' },
+        (payload) => setMessages((prev) => [...prev, payload.new])
+      )
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'messages' },
+        () => {
+          supabase
+            .from('messages')
+            .select('*')
+            .order('created_at', { ascending: true })
+            .then(({ data }) => { if (data) setMessages(data); });
+        }
+      )
+      .subscribe();
+
+    return () => supabase.removeChannel(channel);
   }, []);
 
-  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
 
-  const sendMessage = useCallback(() => {
+  const sendMessage = useCallback(async () => {
     const text = input.trim();
-    if (!text) return;
-    const msg = { sender: currentUser, content: text, ts: Date.now() };
-    const next = [...messages, msg];
-    setMessages(next);
-    saveMessages(next);
+    if (!text || sending) return;
+    setSending(true);
     setInput('');
     if (textareaRef.current) textareaRef.current.style.height = 'auto';
-  }, [input, messages, currentUser]);
+
+    await supabase.from('messages').insert({ sender: currentUser, content: text });
+    setSending(false);
+  }, [input, sending, currentUser]);
 
   const handleKeyDown = useCallback((e) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
@@ -178,10 +190,15 @@ function Chat({ currentUser, onLogout }) {
     ta.style.height = Math.min(ta.scrollHeight, 140) + 'px';
   }, []);
 
-  const clearAll = useCallback(() => {
+  const clearAll = useCallback(async () => {
+    await supabase.from('messages').delete().gte('id', '00000000-0000-0000-0000-000000000000');
     setMessages([]);
-    localStorage.removeItem(STORAGE_KEY);
   }, []);
+
+  const logout = useCallback(() => {
+    localStorage.removeItem(SESSION_KEY);
+    onLogout();
+  }, [onLogout]);
 
   const isVanilla = currentUser === 'vanilla';
 
@@ -202,7 +219,7 @@ function Chat({ currentUser, onLogout }) {
         </div>
         <div className={styles.headerActions}>
           <button className={styles.clearBtn} onClick={clearAll}>clear</button>
-          <button className={styles.clearBtn} onClick={onLogout}>logout</button>
+          <button className={styles.clearBtn} onClick={logout}>logout</button>
         </div>
       </header>
 
@@ -210,8 +227,8 @@ function Chat({ currentUser, onLogout }) {
         {messages.length === 0 && (
           <div className={styles.empty}>no messages yet. say something.</div>
         )}
-        {messages.map((msg, i) => (
-          <Message key={i} message={msg} currentUser={currentUser} />
+        {messages.map((msg) => (
+          <Message key={msg.id} message={msg} currentUser={currentUser} />
         ))}
         <div ref={bottomRef} />
       </main>
@@ -225,11 +242,12 @@ function Chat({ currentUser, onLogout }) {
           value={input}
           onChange={handleInput}
           onKeyDown={handleKeyDown}
+          disabled={sending}
         />
         <button
           className={`${styles.sendBtn} ${isVanilla ? styles.sendVanilla : styles.sendRed}`}
           onClick={sendMessage}
-          disabled={!input.trim()}
+          disabled={!input.trim() || sending}
           aria-label="Send"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -245,13 +263,16 @@ function Chat({ currentUser, onLogout }) {
 // ── Root ──────────────────────────────────────────────────────────────────────
 
 export default function Page() {
-  const [session, setSession] = useState(null); // null = checking
+  const [session, setSession] = useState(null);
   const [expired, setExpired] = useState(false);
 
   useEffect(() => {
     const s = getSession();
     setSession(s || false);
-    setExpired(!s && !!localStorage.getItem(SESSION_KEY + '_was'));
+    if (!s) {
+      const hadSession = !!localStorage.getItem('lightblue_had_session');
+      setExpired(hadSession);
+    }
   }, []);
 
   if (session === null) return null;
@@ -261,7 +282,7 @@ export default function Page() {
       <LoginScreen
         expired={expired}
         onSuccess={(username) => {
-          localStorage.setItem(SESSION_KEY + '_was', '1');
+          localStorage.setItem('lightblue_had_session', '1');
           setSession({ username });
           setExpired(false);
         }}
@@ -274,7 +295,6 @@ export default function Page() {
       key={session.username}
       currentUser={session.username}
       onLogout={() => {
-        localStorage.removeItem(SESSION_KEY);
         setSession(false);
         setExpired(true);
       }}
