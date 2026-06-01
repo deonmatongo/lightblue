@@ -23,16 +23,9 @@
   -webkit-tap-highlight-color: transparent;
 }
 
-html {
-  height: 100%;
-  height: -webkit-fill-available;
-  background: var(--bg);
-}
-
+html,
 body {
   height: 100%;
-  min-height: 100vh;
-  min-height: -webkit-fill-available;
   overflow: hidden;
   overscroll-behavior: none;
   background: var(--bg);
@@ -46,4 +39,5 @@ body {
 
 #__next {
   height: 100%;
+  overflow: hidden;
 }
