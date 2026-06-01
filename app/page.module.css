@@ -596,6 +596,13 @@
   color: var(--muted);
 }
 
+.viewerErr {
+  text-align: center;
+  color: var(--text-dim);
+  font-family: 'Space Grotesk', sans-serif;
+  font-size: 15px;
+}
+
 /* ════════════════════════════════════════════════════
    LOGIN SCREEN
 ═══════════════════════════════════════════════════ */

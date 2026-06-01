@@ -80,7 +80,7 @@ function LoginScreen({ onSuccess, expired }) {
     <div className={styles.loginScreen}>
       <div className={styles.loginCard}>
         <div className={styles.loginLogo}>lightblue</div>
-        <p className={styles.loginSub}>{expired ? 'session expired — sign back in' : 'private conversation'}</p>
+        {expired && <p className={styles.loginSub}>session expired — sign back in</p>}
         <form className={styles.loginForm} onSubmit={submit}>
           <input ref={userRef} className={styles.loginInput} type="text"
             placeholder="username" value={username} autoCapitalize="none"
@@ -95,7 +95,7 @@ function LoginScreen({ onSuccess, expired }) {
             {loading ? '···' : 'sign in'}
           </button>
         </form>
-        <p className={styles.loginNote}>sessions last 24 hours · messages auto-delete</p>
+        <p className={styles.loginNote}>sessions last 24 hours</p>
       </div>
     </div>
   );
@@ -104,6 +104,8 @@ function LoginScreen({ onSuccess, expired }) {
 // ── Image viewer ──────────────────────────────────────────────────────────────
 
 function ImageViewer({ url, onClose }) {
+  const [err, setErr] = useState(false);
+
   useEffect(() => {
     const h = (e) => { if (e.key === 'Escape') onClose(); };
     window.addEventListener('keydown', h);
@@ -112,8 +114,18 @@ function ImageViewer({ url, onClose }) {
 
   return (
     <div className={styles.viewerOverlay} onClick={onClose}>
-      <img className={styles.viewerImg} src={url} alt="shared"
-        onClick={(e) => e.stopPropagation()} onContextMenu={(e) => e.preventDefault()} />
+      {err ? (
+        <div className={styles.viewerErr}>
+          <p>Could not load image</p>
+          <p style={{ fontSize: 11, marginTop: 6, color: 'var(--muted)' }}>It may have already expired</p>
+        </div>
+      ) : (
+        <img className={styles.viewerImg} src={url} alt="shared"
+          onClick={(e) => e.stopPropagation()}
+          onContextMenu={(e) => e.preventDefault()}
+          onError={() => setErr(true)}
+        />
+      )}
       <button className={styles.viewerClose} onClick={onClose}>×</button>
       <p className={styles.viewerHint}>tap to close</p>
     </div>

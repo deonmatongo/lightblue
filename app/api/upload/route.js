@@ -1,5 +1,7 @@
 import { createServerClient } from '../../../lib/supabase-server';
 
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+
 export async function POST(request) {
   try {
     const formData = await request.formData();
@@ -23,7 +25,13 @@ export async function POST(request) {
       .from('chat-media')
       .upload(path, buffer, { contentType: file.type, upsert: false });
 
-    if (uploadError) throw uploadError;
+    if (uploadError) {
+      console.error('Storage upload error:', uploadError);
+      return Response.json({ error: 'upload failed: ' + uploadError.message }, { status: 500 });
+    }
+
+    // Public URL — no expiry, no signed token needed
+    const publicUrl = `${SUPABASE_URL}/storage/v1/object/public/chat-media/${path}`;
 
     const { data: message, error: insertError } = await supabase
       .from('messages')
@@ -31,11 +39,14 @@ export async function POST(request) {
       .select()
       .single();
 
-    if (insertError) throw insertError;
+    if (insertError) {
+      console.error('Insert error:', insertError);
+      return Response.json({ error: 'db insert failed' }, { status: 500 });
+    }
 
-    return Response.json({ message });
+    return Response.json({ message: { ...message, publicUrl } });
   } catch (err) {
-    console.error('Upload error:', err);
-    return Response.json({ error: 'upload failed' }, { status: 500 });
+    console.error('Upload route error:', err);
+    return Response.json({ error: 'server error' }, { status: 500 });
   }
 }
