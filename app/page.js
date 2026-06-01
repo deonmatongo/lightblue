@@ -144,7 +144,16 @@ function Chat({ currentUser, onLogout }) {
   const bottomRef = useRef(null);
   const textareaRef = useRef(null);
 
-  useEffect(() => { setMessages(loadMessages()); }, []);
+  useEffect(() => {
+    setMessages(loadMessages());
+
+    const onStorage = (e) => {
+      if (e.key === STORAGE_KEY) setMessages(loadMessages());
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
+
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
 
   const sendMessage = useCallback(() => {
@@ -262,6 +271,7 @@ export default function Page() {
 
   return (
     <Chat
+      key={session.username}
       currentUser={session.username}
       onLogout={() => {
         localStorage.removeItem(SESSION_KEY);
