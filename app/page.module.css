@@ -10,15 +10,17 @@
 /* ── Header ── */
 .header {
   flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  z-index: 20;
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 14px 20px;
-  padding-top: max(14px, env(safe-area-inset-top));
+  padding: 12px 16px;
+  padding-top: max(16px, env(safe-area-inset-top));
   background: var(--surface);
   border-bottom: 1px solid var(--border);
-  position: relative;
-  min-height: 64px;
+  min-height: 68px;
 }
 
 .header::after {
@@ -114,12 +116,13 @@
 .headerStatus {
   font-family: 'Space Mono', monospace;
   font-size: 9px;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.07em;
   text-transform: uppercase;
   color: var(--text-dim);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  margin-top: 1px;
 }
 
 .headerActions {

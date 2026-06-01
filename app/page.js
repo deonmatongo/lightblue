@@ -372,6 +372,9 @@ function Chat({ currentUser, onLogout }) {
   }, [onLogout]);
 
   const isVanilla = currentUser === 'vanilla';
+  // Header shows WHO you're talking TO, not who you are
+  const otherUser = isVanilla ? 'red' : 'vanilla';
+  const otherIsVanilla = otherUser === 'vanilla';
 
   return (
     <>
@@ -382,16 +385,16 @@ function Chat({ currentUser, onLogout }) {
       <div className={styles.chat}>
         <header className={styles.header}>
           <div className={styles.avatarWrap}>
-            <div className={`${styles.avatar} ${isVanilla ? styles.avatarVanilla : styles.avatarRed}`}>
-              {isVanilla ? 'V' : 'R'}
+            <div className={`${styles.avatar} ${otherIsVanilla ? styles.avatarVanilla : styles.avatarRed}`}>
+              {otherIsVanilla ? 'V' : 'R'}
             </div>
-            <span className={`${styles.onlineDot} ${isVanilla ? styles.dotVanilla : styles.dotRed}`} />
+            <span className={`${styles.onlineDot} ${otherIsVanilla ? styles.dotVanilla : styles.dotRed}`} />
           </div>
           <div className={styles.headerInfo}>
-            <span className={`${styles.headerName} ${isVanilla ? styles.nameVanilla : styles.nameRed}`}>
-              {currentUser}
+            <span className={`${styles.headerName} ${otherIsVanilla ? styles.nameVanilla : styles.nameRed}`}>
+              {otherUser}
             </span>
-            <span className={styles.headerStatus}>private · 24h</span>
+            <span className={styles.headerStatus}>you are {currentUser} · private</span>
           </div>
           <div className={styles.headerActions}>
             <button className={styles.clearBtn} onClick={clearAll}>clear</button>
